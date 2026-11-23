@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>HIIT 随身跟练与打卡</title>
+
+  <!-- iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HIIT跟练">
+  <meta name="theme-color" content="#0A0A0C">
+  
+  <!-- Inline Apple Touch Icon (SVG Data URI) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23CCFF00'><rect width='512' height='512' rx='128' fill='%230A0A0C'/><path d='M256 64L320 220H448L344 300L384 448L256 350L128 448L168 300L64 220H192L256 64Z' fill='%23CCFF00'/><path d='M200 180L312 330' stroke='%23FF5E1A' stroke-width='32' stroke-linecap='round'/></svg>">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ios: {
+              bg: '#0A0A0C',
+              card: '#16181D',
+              cardLight: '#21242C',
+              border: '#2A2E38',
+              lime: '#CCFF00',
+              limeGlow: 'rgba(204, 255, 0, 0.25)',
+              orange: '#FF5E1A',
+              orangeGlow: 'rgba(255, 94, 26, 0.25)',
+              grayText: '#8E8E93',
+              darkText: '#C7C7CC'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* iOS Safe Area & Custom UI Utilities */
+    body {
+      background-color: #0A0A0C;
+      color: #F2F2F7;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+      touch-action: manipulation;
+    }
+
+    .pb-safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    .mb-safe-bottom {
+      margin-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Glassmorphism */
+    .glass-card {
+      background: rgba(22, 24, 29, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-nav {
+      background: rgba(10, 10, 12, 0.88);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Circular SVG Ring Transition */
+    .progress-ring-circle {
+      transition: stroke-dashoffset 0.15s linear, stroke 0.3s ease;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    /* Pulse animation synced to beat */
+    @keyframes beatPulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.04); opacity: 0.9; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .animate-beat {
+      animation: beatPulse 0.25s ease-out;
+    }
+
+    /* Custom range slider style */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #2A2E38;
+      height: 6px;
+      border-radius: 3px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: #CCFF00;
+      box-shadow: 0 0 10px rgba(204, 255, 0, 0.5);
+      cursor: pointer;
+    }
+
+    /* Scrollbar hide */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-100">
+
+  <!-- ==================== 顶部全局状态 Header ==================== -->
+  <header class="w-full max-w-lg mx-auto px-4 pt-3 pb-2 flex items-center justify-between z-20">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-ios-lime/10 border border-ios-lime/30 flex items-center justify-center text-ios-lime shadow-[0_0_12px_rgba(204,255,0,0.2)]">
+        <i class="fa-solid fa-fire-flame-curved text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-black text-lg tracking-tight text-white">HIIT 随身跟练</h1>
+          <span id="headerStreakBadge" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-ios-orange/20 text-ios-orange border border-ios-orange/30">
+            🔥 0 天打卡
+          </span>
+        </div>
+        <p class="text-[11px] text-ios-grayText flex items-center gap-1.5 mt-0.5">
+          <span>预计耗时: <strong id="headerTotalTime" class="text-slate-200">05:45</strong></span>
+          <span>•</span>
+          <span id="wakeLockStatus" class="text-slate-400"><i class="fa-solid fa-sun text-ios-lime mr-0.5"></i>常亮就绪</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Quick Audio Toggles -->
+    <div class="flex items-center gap-1.5">
+      <button id="toggleVoiceBtn" title="切换语音教练" class="w-9 h-9 rounded-xl bg-ios-card border border-ios-border flex items-center justify-center text-ios-lime transition-all active:scale-95">
+        <i class="fa-solid fa-user-doctor text-sm"></i>
+      </button>
+      <button id="toggleSFXBtn" title="切换鼓点音效" class="w-9 h-9 rounded-xl bg-ios-card border border-ios-border flex items-center justify-center text-ios-lime transition-all active:scale-95">
+        <i class="fa-solid fa-drum text-sm"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- iOS Safari 音频解锁提示横幅 (若未解锁) -->
+  <div id="audioUnlockBanner" class="w-full max-w-lg mx-auto px-4 my-1">
+    <button id="unlockAudioBtn" class="w-full py-2 px-3 rounded-xl bg-ios-orange/15 border border-ios-orange/40 text-ios-orange text-xs font-bold flex items-center justify-between shadow-lg">
+      <span class="flex items-center gap-2">
+        <i class="fa-solid fa-volume-high animate-bounce"></i>
+        <span>点击此处解锁 iPhone iOS 语音与鼓点音效</span>
+      </span>
+      <i class="fa-solid fa-chevron-right text-xs"></i>
+    </button>
+  </div>
+
+  <!-- 主视图视图区 Container -->
+  <main class="w-full max-w-lg mx-auto px-4 flex-1 flex flex-col justify-start">
+
+    <!-- ==================== TAB 1: 跟练主界面 ==================== -->
+    <section id="tab-workout" class="tab-content flex-1 flex flex-col items-center">
+      
+      <!-- 主显示卡片 -->
+      <div id="workoutCard" class="w-full glass-card rounded-3xl p-5 my-2 flex flex-col items-center relative overflow-hidden transition-all duration-300">
+        
+        <!-- 状态 Label -->
+        <div class="w-full flex items-center justify-between mb-2">
+          <span id="statusBadge" class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-ios-lime/10 text-ios-lime border border-ios-lime/30 flex items-center gap-1.5">
+            <span id="statusDot" class="w-2 h-2 rounded-full bg-ios-lime animate-ping"></span>
+            <span id="statusText">准备好了吗？</span>
+          </span>
+          <span id="currentBpmBadge" class="text-xs font-mono text-ios-grayText font-bold bg-ios-bg px-2.5 py-1 rounded-lg border border-ios-border">
+            <i class="fa-solid fa-gauge-high text-ios-lime mr-1"></i><span id="bpmValText">90 次/分</span>
+          </span>
+        </div>
+
+        <!-- 圆形进度环 -->
+        <div id="circleContainer" class="relative w-64 h-64 my-1 flex items-center justify-center">
+          <svg class="w-full h-full" viewBox="0 0 280 280">
+            <circle cx="140" cy="140" r="118" stroke="#21242C" stroke-width="14" fill="transparent" />
+            <circle id="progressRing" class="progress-ring-circle" cx="140" cy="140" r="118" stroke="#CCFF00" stroke-width="14" fill="transparent" stroke-dasharray="741.4" stroke-dashoffset="0" stroke-linecap="round" />
+          </svg>
+
+          <!-- 圆内部计数信息 -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+            <div id="mainCountDisplay" class="font-black text-6xl tracking-tighter text-white font-mono drop-shadow-md">
+              0
+            </div>
+            <div id="targetSubDisplay" class="text-xs font-bold text-ios-grayText mt-1">
+              目标 30 个
+            </div>
+            <h2 id="currentExName" class="text-2xl font-black text-white mt-2 tracking-wide">
+              开合跳
+            </h2>
+          </div>
+        </div>
+
+        <!-- 动作要领指示 -->
+        <div class="w-full bg-ios-bg/80 border border-ios-border rounded-xl p-2.5 mt-2 text-center">
+          <p id="exTipText" class="text-xs text-slate-300 font-medium">
+            💡 双脚开合，双手过顶击掌，保持均匀呼吸
+          </p>
+        </div>
+
+        <!-- 动态节奏微调条 (跟练中可随时加减速) -->
+        <div class="w-full mt-3 pt-3 border-t border-ios-border/60 flex items-center justify-between text-xs">
+          <span class="text-ios-grayText font-bold">实时节奏调控:</span>
+          <div class="flex items-center gap-2">
+            <button id="tempoMinusBtn" class="w-8 h-8 rounded-lg bg-ios-bg border border-ios-border text-slate-200 font-bold active:bg-ios-lime/20 active:border-ios-lime transition-all flex items-center justify-center">
+              -5
+            </button>
+            <span id="tempoLiveLabel" class="font-mono font-bold text-ios-lime px-1">90 BPM</span>
+            <button id="tempoPlusBtn" class="w-8 h-8 rounded-lg bg-ios-bg border border-ios-border text-slate-200 font-bold active:bg-ios-lime/20 active:border-ios-lime transition-all flex items-center justify-center">
+              +5
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 播放控制区 -->
+      <div class="w-full flex items-center justify-center gap-5 my-3">
+        <button id="prevExBtn" class="w-12 h-12 rounded-2xl bg-ios-card border border-ios-border text-slate-300 active:scale-95 flex items-center justify-center text-lg transition-all">
+          <i class="fa-solid fa-backward-step"></i>
+        </button>
+
+        <!-- 超大播放/暂停按键 -->
+        <button id="mainPlayBtn" class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-ios-lime to-emerald-400 text-ios-bg font-black text-3xl shadow-[0_0_30px_rgba(204,255,0,0.4)] active:scale-95 flex items-center justify-center transition-all">
+          <i id="mainPlayIcon" class="fa-solid fa-play ml-1"></i>
+        </button>
+
+        <button id="resetExBtn" class="w-12 h-12 rounded-2xl bg-ios-card border border-ios-border text-slate-300 active:scale-95 flex items-center justify-center text-lg transition-all">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+
+        <button id="nextExBtn" class="w-12 h-12 rounded-2xl bg-ios-card border border-ios-border text-slate-300 active:scale-95 flex items-center justify-center text-lg transition-all">
+          <i class="fa-solid fa-forward-step"></i>
+        </button>
+      </div>
+
+      <!-- 紧凑动作队列清单 -->
+      <div class="w-full glass-card rounded-2xl p-3 mb-4">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-xs font-black text-ios-grayText uppercase tracking-wider">动作训练序列 (5项)</span>
+          <span id="nextPreviewText" class="text-[11px] text-ios-lime font-bold">下一项: 胯下击掌</span>
+        </div>
+        <div id="exerciseQueueList" class="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
+          <!-- JS 动态生成 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: 节奏与参数单独设置 ==================== -->
+    <section id="tab-settings" class="tab-content hidden flex-1 flex-col space-y-4 py-2">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-black text-white flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-ios-lime"></i> 动作节奏与目标单独微调
+        </h2>
+        <button id="resetDefaultsBtn" class="text-xs text-ios-orange font-bold hover:underline">
+          <i class="fa-solid fa-arrow-rotate-left mr-1"></i>恢复默认
+        </button>
+      </div>
+
+      <!-- 5个动作的自定义卡片列表 -->
+      <div id="exerciseSettingsCards" class="space-y-3">
+        <!-- JS 动态渲染 -->
+      </div>
+
+      <!-- 全局控制设置卡片 -->
+      <div class="glass-card rounded-2xl p-4 space-y-3">
+        <h3 class="text-xs font-black text-ios-grayText uppercase tracking-wider">全局训练参数</h3>
+        
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs font-bold text-white">动作间休息时长</div>
+            <div class="text-[10px] text-ios-grayText">每个动作完成后的缓冲恢复</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="range" id="restDurationSlider" min="0" max="60" step="5" value="15" class="w-24">
+            <span id="restDurationVal" class="font-mono text-xs font-bold text-ios-lime w-10 text-right">15秒</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-ios-border/60 pt-3">
+          <div>
+            <div class="text-xs font-bold text-white">语音报数模式</div>
+            <div class="text-[10px] text-ios-grayText">高速动作下防止声音卡顿延迟</div>
+          </div>
+          <select id="voiceModeSelect" class="bg-ios-bg border border-ios-border rounded-lg text-xs font-bold text-ios-lime px-2 py-1">
+            <option value="smart">智能节点报数 (推荐)</option>
+            <option value="every">逐个全部报数</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: 打卡记录与月度日历 ==================== -->
+    <section id="tab-history" class="tab-content hidden flex-1 flex-col space-y-4 py-2">
+      
+      <!-- 数据看板 -->
+      <div class="grid grid-cols-3 gap-2.5">
+        <div class="glass-card rounded-2xl p-3 text-center border-l-2 border-l-ios-orange">
+          <div class="text-[10px] font-bold text-ios-grayText">连续打卡</div>
+          <div id="statStreak" class="text-2xl font-black font-mono text-ios-orange mt-0.5">0</div>
+          <div class="text-[9px] text-ios-grayText">天</div>
+        </div>
+        <div class="glass-card rounded-2xl p-3 text-center border-l-2 border-l-ios-lime">
+          <div class="text-[10px] font-bold text-ios-grayText">累计打卡</div>
+          <div id="statTotalDays" class="text-2xl font-black font-mono text-ios-lime mt-0.5">0</div>
+          <div class="text-[9px] text-ios-grayText">天</div>
+        </div>
+        <div class="glass-card rounded-2xl p-3 text-center border-l-2 border-l-cyan-400">
+          <div class="text-[10px] font-bold text-ios-grayText">总跟练次数</div>
+          <div id="statTotalWorkouts" class="text-2xl font-black font-mono text-cyan-400 mt-0.5">0</div>
+          <div class="text-[9px] text-ios-grayText">次</div>
+        </div>
+      </div>
+
+      <!-- 月度打卡日历卡片 -->
+      <div class="glass-card rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 id="calendarMonthTitle" class="text-sm font-black text-white flex items-center gap-1.5">
+            <i class="fa-solid fa-calendar-check text-ios-lime"></i> 2026年11月
+          </h3>
+          <div class="flex items-center gap-1">
+            <button id="prevMonthBtn" class="w-7 h-7 rounded-lg bg-ios-bg border border-ios-border text-xs text-slate-300 flex items-center justify-center">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button id="nextMonthBtn" class="w-7 h-7 rounded-lg bg-ios-bg border border-ios-border text-xs text-slate-300 flex items-center justify-center">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 星期表头 -->
+        <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-ios-grayText mb-1.5">
+          <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+        </div>
+
+        <!-- 日历网格 -->
+        <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center">
+          <!-- JS 动态生成 -->
+        </div>
+      </div>
+
+      <!-- 补卡 / 手动打卡按钮 -->
+      <button id="openManualCheckinBtn" class="w-full py-2.5 rounded-xl bg-ios-card border border-ios-border text-xs font-bold text-ios-lime flex items-center justify-center gap-2 hover:bg-ios-cardLight transition-all">
+        <i class="fa-solid fa-pen-to-square"></i> 手动添加/补打卡记录
+      </button>
+
+      <!-- 历史流水列表 -->
+      <div class="glass-card rounded-2xl p-4">
+        <h3 class="text-xs font-black text-ios-grayText uppercase tracking-wider mb-2.5">近期打卡日志</h3>
+        <div id="historyLogList" class="space-y-2 max-h-48 overflow-y-auto no-scrollbar">
+          <!-- JS 动态生成 -->
+        </div>
+      </div>
+
+      <!-- Safari PWA 添加到主屏幕教程 (折叠式) -->
+      <details class="glass-card rounded-2xl p-3 text-xs text-slate-300 cursor-pointer">
+        <summary class="font-bold text-ios-lime flex items-center justify-between">
+          <span><i class="fa-brands fa-apple mr-1.5"></i> iPhone Safari 添加到主屏幕体验更好</span>
+          <i class="fa-solid fa-chevron-down text-[10px]"></i>
+        </summary>
+        <ol class="list-decimal list-inside space-y-1 mt-2.5 text-ios-grayText text-[11px] leading-relaxed border-t border-ios-border/60 pt-2">
+          <li>在 iPhone Safari 浏览器底部点击 <strong class="text-white">“分享”按钮 ( <i class="fa-solid fa-share-from-square"></i> )</strong>。</li>
+          <li>向下滚动找到并点击 <strong class="text-white">“添加到主屏幕” (Add to Home Screen)</strong>。</li>
+          <li>点击右上角“添加”，以后即可像 iOS 原生 App 一样全屏无缝跟练打卡！</li>
+        </ol>
+      </details>
+
+    </section>
+  </main>
+
+  <!-- ==================== 底部固定 iOS 风格三标签栏 ==================== -->
+  <nav class="fixed bottom-0 left-0 right-0 glass-nav z-40 pb-safe-bottom">
+    <div class="w-full max-w-lg mx-auto flex items-center justify-around h-16 px-2">
+      
+      <button data-tab="workout" class="tab-btn flex-1 flex flex-col items-center justify-center gap-1 text-ios-lime">
+        <i class="fa-solid fa-play text-lg"></i>
+        <span class="text-[10px] font-bold">跟练</span>
+      </button>
+
+      <button data-tab="settings" class="tab-btn flex-1 flex flex-col items-center justify-center gap-1 text-ios-grayText">
+        <i class="fa-solid fa-sliders text-lg"></i>
+        <span class="text-[10px] font-bold">节奏微调</span>
+      </button>
+
+      <button data-tab="history" class="tab-btn flex-1 flex flex-col items-center justify-center gap-1 text-ios-grayText">
+        <i class="fa-solid fa-calendar-days text-lg"></i>
+        <span class="text-[10px] font-bold">打卡记录</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- ==================== 弹窗 1: 训练完成 & 自动打卡庆祝弹窗 ==================== -->
+  <div id="finishModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300 p-4">
+    <div class="w-full max-w-sm glass-card rounded-3xl p-6 text-center space-y-4 border border-ios-lime/30 shadow-[0_0_50px_rgba(204,255,0,0.2)] transform scale-95 transition-transform duration-300" id="finishContent">
+      <div class="w-16 h-16 rounded-full bg-ios-lime/20 border-2 border-ios-lime text-ios-lime flex items-center justify-center mx-auto text-3xl shadow-[0_0_20px_rgba(204,255,0,0.4)]">
+        🏆
+      </div>
+      <div>
+        <h3 class="text-xl font-black text-white">训练完成！打卡成功</h3>
+        <p class="text-xs text-ios-grayText mt-1">你击败了慵懒，完成了全套 HIIT 挑战！</p>
+      </div>
+
+      <!-- 心情选择 -->
+      <div class="space-y-1.5 text-left">
+        <label class="text-[11px] font-bold text-ios-grayText">今日锻炼感受</label>
+        <div class="grid grid-cols-4 gap-2" id="moodSelector">
+          <button data-mood="🔥" class="mood-btn py-2 rounded-xl border border-ios-lime bg-ios-lime/20 text-lg">🔥 爆汗</button>
+          <button data-mood="💪" class="mood-btn py-2 rounded-xl border border-ios-border bg-ios-bg text-lg">💪 充实</button>
+          <button data-mood="😅" class="mood-btn py-2 rounded-xl border border-ios-border bg-ios-bg text-lg">😅 累瘫</button>
+          <button data-mood="👍" class="mood-btn py-2 rounded-xl border border-ios-border bg-ios-bg text-lg">👍 轻松</button>
+        </div>
+      </div>
+
+      <!-- 备注输入 -->
+      <div class="text-left space-y-1">
+        <label class="text-[11px] font-bold text-ios-grayText">添加打卡心得 / 备注</label>
+        <input type="text" id="checkinNoteInput" placeholder="如：今天动作很标准，状态绝佳！" class="w-full bg-ios-bg border border-ios-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-ios-lime">
+      </div>
+
+      <button id="saveFinishBtn" class="w-full py-3 rounded-2xl bg-gradient-to-r from-ios-lime to-emerald-400 text-ios-bg font-black text-sm shadow-lg shadow-ios-lime/30">
+        保存记录并返回
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗 2: 手动补打卡 Modal ==================== -->
+  <div id="manualModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300 p-4">
+    <div class="w-full max-w-sm glass-card rounded-3xl p-5 space-y-4 border border-ios-border">
+      <div class="flex items-center justify-between border-b border-ios-border pb-2.5">
+        <h3 class="text-sm font-black text-white"><i class="fa-solid fa-pen-to-square text-ios-lime mr-1"></i> 手动添加/补打卡</h3>
+        <button id="closeManualBtn" class="text-ios-grayText text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="text-ios-grayText font-bold block mb-1">选择打卡日期</label>
+          <input type="date" id="manualDateInput" class="w-full bg-ios-bg border border-ios-border rounded-xl px-3 py-2 text-white font-mono">
+        </div>
+        <div>
+          <label class="text-ios-grayText font-bold block mb-1">训练总用时 (分钟)</label>
+          <input type="number" id="manualDurationInput" value="6" min="1" max="120" class="w-full bg-ios-bg border border-ios-border rounded-xl px-3 py-2 text-white font-mono">
+        </div>
+        <div>
+          <label class="text-ios-grayText font-bold block mb-1">备注 / 状态</label>
+          <input type="text" id="manualNoteInput" placeholder="补打卡：线下独立完成跟练" class="w-full bg-ios-bg border border-ios-border rounded-xl px-3 py-2 text-white">
+        </div>
+      </div>
+
+      <button id="saveManualCheckinBtn" class="w-full py-2.5 rounded-xl bg-ios-lime text-ios-bg font-black text-xs shadow-lg shadow-ios-lime/20">
+        确认提交打卡
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ==================== JAVASCRIPT 逻辑引擎 ==================== -->
+  <script>
+    /**
+     * 1. 默认运动配置数据
+     */
+    const DEFAULT_EXERCISES = [
+      {
+        id: 'jumping_jacks',
+        name: '开合跳',
+        type: 'count',
+        target: 30,
+        unit: '个',
+        tempo: 90, // 次 / 分钟 (40~160)
+        tempoMin: 40,
+        tempoMax: 160,
+        tempoStep: 5,
+        tip: '双脚开合，双手过顶击掌，保持均匀呼吸',
+        icon: 'fa-child-reaching'
+      },
+      {
+        id: 'underleg_claps',
+        name: '胯下击掌',
+        type: 'count',
+        target: 40,
+        unit: '个',
+        tempo: 80, // 次 / 分钟 (40~140)
+        tempoMin: 40,
+        tempoMax: 140,
+        tempoStep: 5,
+        tip: '抬腿至髋部高度，双手腿下击掌，收紧核心',
+        icon: 'fa-hands-clapping'
+      },
+      {
+        id: 'cross_knees',
+        name: '对侧提膝',
+        type: 'count',
+        target: 50,
+        unit: '个',
+        tempo: 95, // 次 / 分钟 (40~150)
+        tempoMin: 40,
+        tempoMax: 150,
+        tempoStep: 5,
+        tip: '手肘尽可能触碰对侧膝盖，充分旋转扭转核心',
+        icon: 'fa-person-running'
+      },
+      {
+        id: 'high_knees',
+        name: '高抬腿',
+        type: 'count',
+        target: 60,
+        unit: '个',
+        tempo: 130, // 次 / 分钟 (60~200)
+        tempoMin: 60,
+        tempoMax: 200,
+        tempoStep: 5,
+        tip: '大腿抬至平平行，前脚掌轻盈落地，快速冲刺',
+        icon: 'fa-person-walking-arrow-loop-left'
+      },
+      {
+        id: 'squats',
+        name: '深蹲',
+        type: 'time',
+        target: 120, // 秒 (2分钟)
+        unit: '秒',
+        tempo: 3.0, // 秒/个 (1.5~6.0)
+        tempoMin: 1.5,
+        tempoMax: 6.0,
+        tempoStep: 0.5,
+        tip: '臀部向后坐，膝盖与脚尖同向，下蹲-起立双音节节奏',
+        icon: 'fa-person-arrow-down-to-line'
+      }
+    ];
+
+    /**
+     * 2. Web Audio API 音效与 iPhone 解锁引擎
+     */
+    class WebAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.isUnlocked = false;
+        this.isSFXEnabled = true;
+        this.previewTimer = null;
+      }
+
+      // iOS 解锁：在首个 touchstart/click 的事件处理函数中调用
+      unlock() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        // 播放极短静音 Buffer 解锁通道
+        const buffer = this.ctx.createBuffer(1, 1, 22050);
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.ctx.destination);
+        source.start(0);
+        
+        this.isUnlocked = true;
+        document.getElementById('audioUnlockBanner').style.display = 'none';
+      }
+
+      playBeep(freq = 600, duration = 0.06, type = 'sine', volume = 0.25) {
+        if (!this.isSFXEnabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch(e) {}
+      }
+
+      // 计次常规滴答节拍音
+      playTick() {
+        this.playBeep(880, 0.04, 'triangle', 0.2);
+      }
+
+      // 深蹲专属双音节：下蹲 (低音) / 起立 (高音)
+      playSquatTone(isUp = false) {
+        if (isUp) {
+          this.playBeep(784, 0.08, 'sine', 0.3); // G5 起立
+        } else {
+          this.playBeep(392, 0.1, 'sine', 0.25); // G4 下蹲
+        }
+      }
+
+      // 逢10里程碑音
+      playMilestone() {
+        this.playBeep(1046.5, 0.06, 'sine', 0.3);
+        setTimeout(() => this.playBeep(1318.5, 0.1, 'sine', 0.35), 70);
+      }
+
+      // 倒计时提示音
+      playCountdownBeep() {
+        this.playBeep(523.25, 0.1, 'sine', 0.35);
+      }
+
+      // 开始哨音
+      playWhistle() {
+        if (!this.isSFXEnabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(900, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1800, this.ctx.currentTime + 0.2);
+          gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.25);
+        } catch(e) {}
+      }
+
+      // 胜利音效
+      playVictory() {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, i) => {
+          setTimeout(() => this.playBeep(freq, 0.2, 'triangle', 0.35), i * 100);
+        });
+      }
+
+      // 试听 4 秒节拍
+      playPreviewRhythm(ex) {
+        this.unlock();
+        if (this.previewTimer) clearInterval(this.previewTimer);
+
+        let intervalMs = 600;
+        if (ex.type === 'count') {
+          intervalMs = (60 / ex.tempo) * 1000;
+        } else {
+          intervalMs = (ex.tempo / 2) * 1000;
+        }
+
+        let count = 0;
+        let isUp = false;
+        
+        // 立即发出一声
+        if (ex.id === 'squats') {
+          this.playSquatTone(isUp);
+          isUp = !isUp;
+        } else {
+          this.playTick();
+        }
+
+        this.previewTimer = setInterval(() => {
+          count++;
+          if (count >= 8) { // ~4秒左右停止
+            clearInterval(this.previewTimer);
+            this.previewTimer = null;
+            return;
+          }
+          if (ex.id === 'squats') {
+            this.playSquatTone(isUp);
+            isUp = !isUp;
+          } else {
+            this.playTick();
+          }
+        }, intervalMs);
+      }
+    }
+
+    /**
+     * 3. Web Speech API 智能中文语音教练
+     */
+    class ChineseVoiceEngine {
+      constructor() {
+        this.synth = window.speechSynthesis || null;
+        this.isVoiceEnabled = true;
+        this.voiceMode = 'smart'; // 'smart' 或 'every'
+      }
+
+      // iOS Safari 解锁语音
+      unlock() {
+        if (this.synth) {
+          const u = new SpeechSynthesisUtterance('');
+          u.lang = 'zh-CN';
+          this.synth.speak(u);
+        }
+      }
+
+      speak(text, clearQueue = false) {
+        if (!this.isVoiceEnabled || !this.synth) return;
+        if (clearQueue) this.synth.cancel();
+
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 1.15; // 干练爽快的语速
+        u.pitch = 1.0;
+        this.synth.speak(u);
+      }
+
+      stop() {
+        if (this.synth) this.synth.cancel();
+      }
+    }
+
+    /**
+     * 4. 应用数据状态管理器
+     */
+    class AppStateManager {
+      constructor() {
+        this.exercises = JSON.parse(localStorage.getItem('hiit_exercises_config')) || DEFAULT_EXERCISES;
+        this.checkins = JSON.parse(localStorage.getItem('hiit_checkins_history')) || [];
+        this.restDuration = parseInt(localStorage.getItem('hiit_rest_duration') || '15');
+        this.selectedMood = '🔥';
+        this.currentCalendarDate = new Date();
+      }
+
+      saveExercises() {
+        localStorage.setItem('hiit_exercises_config', JSON.stringify(this.exercises));
+      }
+
+      saveCheckins() {
+        localStorage.setItem('hiit_checkins_history', JSON.stringify(this.checkins));
+      }
+
+      saveGlobalSettings() {
+        localStorage.setItem('hiit_rest_duration', this.restDuration.toString());
+      }
+
+      resetExercisesToDefault() {
+        this.exercises = JSON.parse(JSON.stringify(DEFAULT_EXERCISES));
+        this.restDuration = 15;
+        this.saveExercises();
+        this.saveGlobalSettings();
+      }
+
+      addCheckin(checkinObj) {
+        this.checkins.unshift(checkinObj);
+        this.saveCheckins();
+      }
+
+      deleteCheckin(id) {
+        this.checkins = this.checkins.filter(c => c.id !== id);
+        this.saveCheckins();
+      }
+
+      // 计算连续打卡天数 (Streak)
+      getStreakDays() {
+        if (this.checkins.length === 0) return 0;
+        
+        const dateSet = new Set(this.checkins.map(c => c.date));
+        const sortedDates = Array.from(dateSet).sort((a,b) => new Date(b) - new Date(a));
+        
+        let streak = 0;
+        let checkDate = new Date();
+        
+        // 如果今天没打卡，检查昨天是否打卡了，以保持连胜
+        const todayStr = checkDate.toISOString().split('T')[0];
+        checkDate.setDate(checkDate.getDate() - 1);
+        const yesterdayStr = checkDate.toISOString().split('T')[0];
+
+        if (!dateSet.has(todayStr) && !dateSet.has(yesterdayStr)) {
+          return 0;
+        }
+
+        let curr = dateSet.has(todayStr) ? new Date() : checkDate;
+
+        while (true) {
+          const dateStr = curr.toISOString().split('T')[0];
+          if (dateSet.has(dateStr)) {
+            streak++;
+            curr.setDate(curr.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+        return streak;
+      }
+    }
+
+    /**
+     * 5. 核心跟练控制器 (支持时间戳高精度节拍)
+     */
+    const soundEngine = new WebAudioEngine();
+    const voiceEngine = new ChineseVoiceEngine();
+    const appState = new AppStateManager();
+
+    let workoutRunState = {
+      status: 'IDLE', // 'IDLE', 'GET_READY', 'WORK', 'REST', 'PAUSED', 'FINISHED'
+      currentExerciseIdx: 0,
+      currentCount: 0,
+      squatPhaseIsUp: false,
+      timerId: null,
+      startTime: 0,
+      wakeLock: null
+    };
+
+    // DOM 缓存
+    const DOM = {
+      // Tab 按钮与 View
+      tabBtns: document.querySelectorAll('.tab-btn'),
+      tabContents: document.querySelectorAll('.tab-content'),
+
+      // Header UI
+      headerStreakBadge: document.getElementById('headerStreakBadge'),
+      headerTotalTime: document.getElementById('headerTotalTime'),
+      wakeLockStatus: document.getElementById('wakeLockStatus'),
+      toggleVoiceBtn: document.getElementById('toggleVoiceBtn'),
+      toggleSFXBtn: document.getElementById('toggleSFXBtn'),
+      unlockAudioBtn: document.getElementById('unlockAudioBtn'),
+
+      // Workout View UI
+      workoutCard: document.getElementById('workoutCard'),
+      statusBadge: document.getElementById('statusBadge'),
+      statusText: document.getElementById('statusText'),
+      currentBpmBadge: document.getElementById('currentBpmBadge'),
+      bpmValText: document.getElementById('bpmValText'),
+      progressRing: document.getElementById('progressRing'),
+      circleContainer: document.getElementById('circleContainer'),
+      mainCountDisplay: document.getElementById('mainCountDisplay'),
+      targetSubDisplay: document.getElementById('targetSubDisplay'),
+      currentExName: document.getElementById('currentExName'),
+      exTipText: document.getElementById('exTipText'),
+      tempoMinusBtn: document.getElementById('tempoMinusBtn'),
+      tempoPlusBtn: document.getElementById('tempoPlusBtn'),
+      tempoLiveLabel: document.getElementById('tempoLiveLabel'),
+      
+      // Controls
+      mainPlayBtn: document.getElementById('mainPlayBtn'),
+      mainPlayIcon: document.getElementById('mainPlayIcon'),
+      prevExBtn: document.getElementById('prevExBtn'),
+      nextExBtn: document.getElementById('nextExBtn'),
+      resetExBtn: document.getElementById('resetExBtn'),
+      exerciseQueueList: document.getElementById('exerciseQueueList'),
+      nextPreviewText: document.getElementById('nextPreviewText'),
+
+      // Settings View
+      exerciseSettingsCards: document.getElementById('exerciseSettingsCards'),
+      restDurationSlider: document.getElementById('restDurationSlider'),
+      restDurationVal: document.getElementById('restDurationVal'),
+      voiceModeSelect: document.getElementById('voiceModeSelect'),
+      resetDefaultsBtn: document.getElementById('resetDefaultsBtn'),
+
+      // History View
+      statStreak: document.getElementById('statStreak'),
+      statTotalDays: document.getElementById('statTotalDays'),
+      statTotalWorkouts: document.getElementById('statTotalWorkouts'),
+      calendarMonthTitle: document.getElementById('calendarMonthTitle'),
+      calendarGrid: document.getElementById('calendarGrid'),
+      prevMonthBtn: document.getElementById('prevMonthBtn'),
+      nextMonthBtn: document.getElementById('nextMonthBtn'),
+      historyLogList: document.getElementById('historyLogList'),
+      openManualCheckinBtn: document.getElementById('openManualCheckinBtn'),
+
+      // Modals
+      finishModal: document.getElementById('finishModal'),
+      finishContent: document.getElementById('finishContent'),
+      saveFinishBtn: document.getElementById('saveFinishBtn'),
+      checkinNoteInput: document.getElementById('checkinNoteInput'),
+      moodBtns: document.querySelectorAll('.mood-btn'),
+
+      manualModal: document.getElementById('manualModal'),
+      closeManualBtn: document.getElementById('closeManualBtn'),
+      saveManualCheckinBtn: document.getElementById('saveManualCheckinBtn'),
+      manualDateInput: document.getElementById('manualDateInput'),
+      manualDurationInput: document.getElementById('manualDurationInput'),
+      manualNoteInput: document.getElementById('manualNoteInput')
+    };
+
+    /**
+     * 程序主初始化程序
+     */
+    function init() {
+      bindTabNavigation();
+      bindAudioUnlocks();
+      bindWorkoutControls();
+      bindSettingsEvents();
+      bindHistoryEvents();
+      
+      renderQueueList();
+      renderSettingsCards();
+      renderHistoryView();
+      updateHeaderStats();
+      updateWorkoutUI();
+    }
+
+    // 绑定 iOS 底部 Tab 切换
+    function bindTabNavigation() {
+      DOM.tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tabTarget = btn.dataset.tab;
+          
+          DOM.tabBtns.forEach(b => {
+            b.className = "tab-btn flex-1 flex flex-col items-center justify-center gap-1 text-ios-grayText";
+          });
+          btn.className = "tab-btn flex-1 flex flex-col items-center justify-center gap-1 text-ios-lime";
+
+          DOM.tabContents.forEach(content => {
+            if (content.id === `tab-${tabTarget}`) {
+              content.classList.remove('hidden');
+              content.classList.add('flex');
+            } else {
+              content.classList.add('hidden');
+              content.classList.remove('flex');
+            }
+          });
+
+          if (tabTarget === 'history') {
+            renderHistoryView();
+          }
+        });
+      });
+    }
+
+    // iOS 音频/语音一键解锁绑定
+    function bindAudioUnlocks() {
+      const unlockHandler = () => {
+        soundEngine.unlock();
+        voiceEngine.unlock();
+      };
+      DOM.unlockAudioBtn.addEventListener('click', unlockHandler);
+      document.body.addEventListener('click', unlockHandler, { once: true });
+    }
+
+    // 计算全套动作预估耗时
+    function calculateTotalEstimatedSeconds() {
+      let totalSecs = 0;
+      appState.exercises.forEach(ex => {
+        if (ex.type === 'count') {
+          totalSecs += Math.round((ex.target / ex.tempo) * 60);
+        } else {
+          totalSecs += ex.target;
+        }
+      });
+      // 加上准备时间(5s/项)与休息时间
+      totalSecs += 5 * appState.exercises.length;
+      totalSecs += appState.restDuration * (appState.exercises.length - 1);
+      return totalSecs;
+    }
+
+    function updateHeaderStats() {
+      const streak = appState.getStreakDays();
+      DOM.headerStreakBadge.innerText = `🔥 ${streak} 天打卡`;
+
+      const totalSecs = calculateTotalEstimatedSeconds();
+      const mins = Math.floor(totalSecs / 60).toString().padStart(2, '0');
+      const secs = (totalSecs % 60).toString().padStart(2, '0');
+      DOM.headerTotalTime.innerText = `${mins}:${secs}`;
+    }
+
+    /**
+     * 6. Workout UI 渲染更新机制
+     */
+    function updateWorkoutUI() {
+      const currentEx = appState.exercises[workoutRunState.currentExerciseIdx];
+      const nextEx = appState.exercises[workoutRunState.currentExerciseIdx + 1];
+
+      // 按钮图标
+      if (workoutRunState.status === 'WORK' || workoutRunState.status === 'GET_READY' || workoutRunState.status === 'REST') {
+        DOM.mainPlayIcon.className = 'fa-solid fa-pause';
+      } else {
+        DOM.mainPlayIcon.className = 'fa-solid fa-play ml-1';
+      }
+
+      // 实时 BPM / 节奏 Label
+      if (currentEx.type === 'count') {
+        DOM.bpmValText.innerText = `${currentEx.tempo} 次/分`;
+        DOM.tempoLiveLabel.innerText = `${currentEx.tempo} BPM`;
+      } else {
+        DOM.bpmValText.innerText = `${currentEx.tempo} 秒/个`;
+        DOM.tempoLiveLabel.innerText = `${currentEx.tempo}s/个`;
+      }
+
+      // 状态 Badge
+      if (workoutRunState.status === 'REST') {
+        DOM.statusBadge.className = "px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
+        DOM.statusText.innerText = "组间休息中";
+        DOM.progressRing.setAttribute('stroke', '#10B981');
+      } else {
+        DOM.statusBadge.className = "px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-ios-lime/10 text-ios-lime border border-ios-lime/30 flex items-center gap-1.5";
+        DOM.statusText.innerText = workoutRunState.status === 'WORK' ? "跟练中" : (workoutRunState.status === 'GET_READY' ? "准备倒计时" : "就绪");
+        DOM.progressRing.setAttribute('stroke', '#CCFF00');
+      }
+
+      // 文本与数字展示
+      if (workoutRunState.status === 'GET_READY') {
+        DOM.mainCountDisplay.innerText = workoutRunState.currentCount;
+        DOM.targetSubDisplay.innerText = "准备开始";
+        DOM.currentExName.innerText = currentEx.name;
+        DOM.exTipText.innerText = `💡 调整呼吸，准备进行：${currentEx.name}`;
+      } else if (workoutRunState.status === 'REST') {
+        DOM.mainCountDisplay.innerText = workoutRunState.currentCount;
+        DOM.targetSubDisplay.innerText = "休息倒计时";
+        DOM.currentExName.innerText = `准备: ${currentEx.name}`;
+        DOM.exTipText.innerText = `🍵 深呼吸，放松肌肉调整心态`;
+      } else if (currentEx.type === 'count') {
+        DOM.mainCountDisplay.innerText = workoutRunState.currentCount;
+        DOM.targetSubDisplay.innerText = `/ ${currentEx.target} ${currentEx.unit}`;
+        DOM.currentExName.innerText = currentEx.name;
+        DOM.exTipText.innerText = `💡 ${currentEx.tip}`;
+      } else {
+        // 深蹲倒计时
+        const mins = Math.floor(workoutRunState.currentCount / 60).toString().padStart(2, '0');
+        const secs = (workoutRunState.currentCount % 60).toString().padStart(2, '0');
+        DOM.mainCountDisplay.innerText = `${mins}:${secs}`;
+        const estReps = Math.round(currentEx.target / currentEx.tempo);
+        DOM.targetSubDisplay.innerText = `预估完成 ~${estReps} 次深蹲`;
+        DOM.currentExName.innerText = currentEx.name;
+        DOM.exTipText.innerText = `💡 ${currentEx.tip}`;
+      }
+
+      // 圆环 DashOffset
+      const circumference = 741.4; // 2 * PI * 118
+      let percent = 0;
+      if (workoutRunState.status === 'WORK') {
+        percent = currentEx.type === 'count' 
+          ? (workoutRunState.currentCount / currentEx.target)
+          : (1 - workoutRunState.currentCount / currentEx.target);
+      } else if (workoutRunState.status === 'REST') {
+        percent = 1 - (workoutRunState.currentCount / appState.restDuration);
+      } else if (workoutRunState.status === 'GET_READY') {
+        percent = 1 - (workoutRunState.currentCount / 5);
+      }
+
+      const offset = circumference - (Math.min(1, Math.max(0, percent)) * circumference);
+      DOM.progressRing.style.strokeDashoffset = offset;
+
+      // 下一项预览
+      if (nextEx) {
+        DOM.nextPreviewText.innerText = `下一项: ${nextEx.name}`;
+      } else {
+        DOM.nextPreviewText.innerText = `最后一项，收尾冲刺！`;
+      }
+
+      renderQueueList();
+    }
+
+    // 队列列表
+    function renderQueueList() {
+      DOM.exerciseQueueList.innerHTML = '';
+      appState.exercises.forEach((ex, idx) => {
+        const active = (idx === workoutRunState.currentExerciseIdx);
+        const div = document.createElement('div');
+        div.className = `flex items-center justify-between p-2 rounded-xl text-xs transition-all cursor-pointer ${
+          active 
+            ? 'bg-ios-lime/15 border border-ios-lime/40 text-white font-bold' 
+            : 'bg-ios-bg/60 border border-ios-border/40 text-ios-grayText hover:border-ios-border'
+        }`;
+
+        const speedText = ex.type === 'count' ? `${ex.tempo} BPM` : `${ex.tempo}s/个`;
+
+        div.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <div class="w-6 h-6 rounded-lg ${active ? 'bg-ios-lime text-ios-bg' : 'bg-ios-card text-ios-grayText'} flex items-center justify-center font-mono font-black text-[11px]">
+              ${idx + 1}
+            </div>
+            <div>
+              <span class="${active ? 'text-white' : 'text-slate-300'}">${ex.name}</span>
+              <span class="text-[10px] text-ios-grayText ml-1.5">(${ex.target}${ex.unit})</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-[10px] text-ios-lime">${speedText}</span>
+            <i class="${active ? 'fa-solid fa-volume-high text-ios-lime animate-pulse' : 'fa-solid fa-chevron-right text-ios-border'} text-[10px]"></i>
+          </div>
+        `;
+
+        div.addEventListener('click', () => {
+          if (workoutRunState.status !== 'IDLE') pauseWorkout();
+          workoutRunState.currentExerciseIdx = idx;
+          workoutRunState.status = 'IDLE';
+          workoutRunState.currentCount = 0;
+          updateWorkoutUI();
+        });
+
+        DOM.exerciseQueueList.appendChild(div);
+      });
+    }
+
+    /**
+     * 7. 跟练流程逻辑控制
+     */
+    function bindWorkoutControls() {
+      // 快捷控制
+      DOM.toggleVoiceBtn.addEventListener('click', () => {
+        voiceEngine.isVoiceEnabled = !voiceEngine.isVoiceEnabled;
+        DOM.toggleVoiceBtn.className = `w-9 h-9 rounded-xl border flex items-center justify-center transition-all active:scale-95 ${
+          voiceEngine.isVoiceEnabled ? 'bg-ios-card border-ios-border text-ios-lime' : 'bg-ios-bg border-ios-border text-ios-grayText'
+        }`;
+      });
+
+      DOM.toggleSFXBtn.addEventListener('click', () => {
+        soundEngine.isSFXEnabled = !soundEngine.isSFXEnabled;
+        DOM.toggleSFXBtn.className = `w-9 h-9 rounded-xl border flex items-center justify-center transition-all active:scale-95 ${
+          soundEngine.isSFXEnabled ? 'bg-ios-card border-ios-border text-ios-lime' : 'bg-ios-bg border-ios-border text-ios-grayText'
+        }`;
+      });
+
+      // 实时节奏加减速
+      DOM.tempoMinusBtn.addEventListener('click', () => adjustLiveTempo(-1));
+      DOM.tempoPlusBtn.addEventListener('click', () => adjustLiveTempo(1));
+
+      // 播放/暂停/上一个/下一个
+      DOM.mainPlayBtn.addEventListener('click', () => {
+        soundEngine.unlock();
+        voiceEngine.unlock();
+
+        if (workoutRunState.status === 'WORK' || workoutRunState.status === 'GET_READY' || workoutRunState.status === 'REST') {
+          pauseWorkout();
+        } else {
+          startWorkout();
+        }
+      });
+
+      DOM.resetExBtn.addEventListener('click', resetWorkout);
+
+      DOM.prevExBtn.addEventListener('click', () => {
+        if (workoutRunState.currentExerciseIdx > 0) {
+          const wasRunning = (workoutRunState.status === 'WORK' || workoutRunState.status === 'REST');
+          pauseWorkout();
+          workoutRunState.currentExerciseIdx--;
+          workoutRunState.status = 'IDLE';
+          workoutRunState.currentCount = 0;
+          updateWorkoutUI();
+          if (wasRunning) startWorkout();
+        }
+      });
+
+      DOM.nextExBtn.addEventListener('click', () => {
+        if (workoutRunState.currentExerciseIdx < appState.exercises.length - 1) {
+          const wasRunning = (workoutRunState.status === 'WORK' || workoutRunState.status === 'REST');
+          pauseWorkout();
+          workoutRunState.currentExerciseIdx++;
+          workoutRunState.status = 'IDLE';
+          workoutRunState.currentCount = 0;
+          updateWorkoutUI();
+          if (wasRunning) startWorkout();
+        }
+      });
+    }
+
+    function adjustLiveTempo(direction) {
+      const ex = appState.exercises[workoutRunState.currentExerciseIdx];
+      if (ex.type === 'count') {
+        const step = direction * ex.tempoStep;
+        ex.tempo = Math.min(ex.tempoMax, Math.max(ex.tempoMin, ex.tempo + step));
+      } else {
+        const step = direction * ex.tempoStep;
+        ex.tempo = Math.min(ex.tempoMax, Math.max(ex.tempoMin, parseFloat((ex.tempo + step).toFixed(1))));
+      }
+      appState.saveExercises();
+      updateWorkoutUI();
+      renderSettingsCards();
+      
+      // 如果当前正在进行中，重启该阶段以更新时间间隔
+      if (workoutRunState.status === 'WORK') {
+        clearInterval(workoutRunState.timerId);
+        runWorkPhase();
+      }
+    }
+
+    function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          navigator.wakeLock.request('screen').then(lock => {
+            workoutRunState.wakeLock = lock;
+            DOM.wakeLockStatus.innerHTML = '<i class="fa-solid fa-sun text-ios-lime mr-0.5"></i>屏锁激活';
+          });
+        }
+      } catch(e) {}
+    }
+
+    function releaseWakeLock() {
+      if (workoutRunState.wakeLock) {
+        workoutRunState.wakeLock.release();
+        workoutRunState.wakeLock = null;
+        DOM.wakeLockStatus.innerHTML = '<i class="fa-solid fa-sun text-slate-500 mr-0.5"></i>常亮就绪';
+      }
+    }
+
+    function startWorkout() {
+      requestWakeLock();
+      if (workoutRunState.status === 'IDLE') {
+        startGetReadyPhase();
+      } else if (workoutRunState.status === 'PAUSED') {
+        resumeWorkout();
+      }
+    }
+
+    function pauseWorkout() {
+      clearInterval(workoutRunState.timerId);
+      workoutRunState.timerId = null;
+      workoutRunState.status = 'PAUSED';
+      voiceEngine.stop();
+      updateWorkoutUI();
+    }
+
+    function resumeWorkout() {
+      if (workoutRunState.previousState === 'REST') {
+        runRestPhase();
+      } else {
+        runWorkPhase();
+      }
+    }
+
+    function resetWorkout() {
+      clearInterval(workoutRunState.timerId);
+      workoutRunState.timerId = null;
+      voiceEngine.stop();
+      releaseWakeLock();
+
+      workoutRunState.status = 'IDLE';
+      workoutRunState.currentExerciseIdx = 0;
+      workoutRunState.currentCount = 0;
+      updateWorkoutUI();
+    }
+
+    // 5秒准备阶段
+    function startGetReadyPhase() {
+      workoutRunState.status = 'GET_READY';
+      workoutRunState.currentCount = 5;
+      updateWorkoutUI();
+
+      const currentEx = appState.exercises[workoutRunState.currentExerciseIdx];
+      voiceEngine.speak(`准备开始！${currentEx.name}，${currentEx.target}${currentEx.unit}。3、2、1，开始！`, true);
+
+      workoutRunState.timerId = setInterval(() => {
+        workoutRunState.currentCount--;
+        updateWorkoutUI();
+
+        if (workoutRunState.currentCount <= 3 && workoutRunState.currentCount > 0) {
+          soundEngine.playCountdownBeep();
+        }
+
+        if (workoutRunState.currentCount <= 0) {
+          clearInterval(workoutRunState.timerId);
+          startWorkPhase();
+        }
+      }, 1000);
+    }
+
+    function startWorkPhase() {
+      workoutRunState.status = 'WORK';
+      soundEngine.playWhistle();
+
+      const currentEx = appState.exercises[workoutRunState.currentExerciseIdx];
+      if (currentEx.type === 'count') {
+        workoutRunState.currentCount = 0;
+      } else {
+        workoutRunState.currentCount = currentEx.target;
+      }
+      workoutRunState.squatPhaseIsUp = false;
+
+      updateWorkoutUI();
+      runWorkPhase();
+    }
+
+    // 基于高精度时间间隔运行动作
+    function runWorkPhase() {
+      const currentEx = appState.exercises[workoutRunState.currentExerciseIdx];
+
+      if (currentEx.type === 'count') {
+        // 计次模式
+        const intervalMs = (60 / currentEx.tempo) * 1000;
+        
+        workoutRunState.timerId = setInterval(() => {
+          workoutRunState.currentCount++;
+          triggerBeatPulse();
+          updateWorkoutUI();
+
+          // 音效
+          if (workoutRunState.currentCount % 10 === 0) {
+            soundEngine.playMilestone();
+          } else {
+            soundEngine.playTick();
+          }
+
+          // 智能分段报数
+          handleVoiceCount(currentEx);
+
+          if (workoutRunState.currentCount >= currentEx.target) {
+            clearInterval(workoutRunState.timerId);
+            finishCurrentExercise();
+          }
+        }, intervalMs);
+
+      } else {
+        // 深蹲倒计时模式 (带下蹲-起立双音节)
+        const squatStepMs = (currentEx.tempo / 2) * 1000; // 每半个周期（下蹲或起立）的毫秒数
+        let halfStepCounter = 0;
+
+        workoutRunState.timerId = setInterval(() => {
+          halfStepCounter++;
+
+          // 播放下蹲或起立声音
+          soundEngine.playSquatTone(workoutRunState.squatPhaseIsUp);
+          workoutRunState.squatPhaseIsUp = !workoutRunState.squatPhaseIsUp;
+          triggerBeatPulse();
+
+          // 当完成完整的一蹲一起（2个halfStep）时，扣除对应秒数
+          if (halfStepCounter % 2 === 0) {
+            workoutRunState.currentCount = Math.max(0, workoutRunState.currentCount - Math.round(currentEx.tempo));
+            updateWorkoutUI();
+
+            const remaining = workoutRunState.currentCount;
+            if (remaining === 90) voiceEngine.speak("还有1分30秒，注意蹲深起立", true);
+            if (remaining === 60) voiceEngine.speak("坚持过半！最后1分钟", true);
+            if (remaining === 30) voiceEngine.speak("最后30秒，稳住核心！", true);
+            if (remaining === 10) voiceEngine.speak("最后10秒！", true);
+          }
+
+          if (workoutRunState.currentCount <= 0) {
+            clearInterval(workoutRunState.timerId);
+            finishCurrentExercise();
+          }
+        }, squatStepMs);
+      }
+    }
+
+    function triggerBeatPulse() {
+      DOM.circleContainer.classList.remove('animate-beat');
+      void DOM.circleContainer.offsetWidth; // 触发 reflow
+      DOM.circleContainer.classList.add('animate-beat');
+    }
+
+    function handleVoiceCount(ex) {
+      const count = workoutRunState.currentCount;
+      const target = ex.target;
+      const mode = DOM.voiceModeSelect.value;
+
+      if (mode === 'every') {
+        voiceEngine.speak(count.toString());
+      } else {
+        // 智能节点报数
+        if (count === 1) voiceEngine.speak("1");
+        else if (count === Math.floor(target / 2)) voiceEngine.speak("过半，加油！", true);
+        else if (count === target - 5) voiceEngine.speak("最后5个", true);
+        else if (count > target - 5 && count < target) voiceEngine.speak((target - count).toString());
+        else if (count % 10 === 0 && count !== target) voiceEngine.speak(count.toString());
+      }
+    }
+
+    function finishCurrentExercise() {
+      soundEngine.playWhistle();
+
+      if (workoutRunState.currentExerciseIdx < appState.exercises.length - 1) {
+        workoutRunState.currentExerciseIdx++;
+        if (appState.restDuration > 0) {
+          startRestPhase();
+        } else {
+          startWorkPhase();
+        }
+      } else {
+        // 完成全部 5 项 HIIT！
+        finishAllWorkout();
+      }
+    }
+
+    function startRestPhase() {
+      workoutRunState.status = 'REST';
+      workoutRunState.currentCount = appState.restDuration;
+      updateWorkoutUI();
+
+      const nextEx = appState.exercises[workoutRunState.currentExerciseIdx];
+      voiceEngine.speak(`休息一下。下一项：${nextEx.name}`, true);
+
+      runRestPhase();
+    }
+
+    function runRestPhase() {
+      workoutRunState.timerId = setInterval(() => {
+        workoutRunState.currentCount--;
+        updateWorkoutUI();
+
+        if (workoutRunState.currentCount <= 3 && workoutRunState.currentCount > 0) {
+          soundEngine.playCountdownBeep();
+        }
+
+        if (workoutRunState.currentCount <= 0) {
+          clearInterval(workoutRunState.timerId);
+          startWorkPhase();
+        }
+      }, 1000);
+    }
+
+    // 完成全部训练并触发打卡弹窗
+    function finishAllWorkout() {
+      workoutRunState.status = 'FINISHED';
+      updateWorkoutUI();
+      soundEngine.playVictory();
+      voiceEngine.speak("太棒了！训练全部完成！你已成功打卡今日 HIIT！", true);
+      releaseWakeLock();
+
+      // 弹出完成 Modal
+      setTimeout(() => {
+        DOM.finishModal.classList.remove('opacity-0', 'pointer-events-none');
+        DOM.finishContent.classList.remove('scale-95');
+      }, 400);
+    }
+
+    /**
+     * 8. 节奏与参数单独设置面板 (Tab 2)
+     */
+    function renderSettingsCards() {
+      DOM.exerciseSettingsCards.innerHTML = '';
+      
+      appState.exercises.forEach((ex, idx) => {
+        const card = document.createElement('div');
+        card.className = "glass-card rounded-2xl p-4 space-y-3";
+
+        const isCount = ex.type === 'count';
+        const tempoUnitStr = isCount ? '次/分 (BPM)' : '秒/个';
+        const estTimeSecs = isCount ? Math.round((ex.target / ex.tempo) * 60) : ex.target;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-ios-border/60 pb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-ios-lime/20 text-ios-lime text-xs font-mono font-bold flex items-center justify-center">
+                ${idx + 1}
+              </span>
+              <h4 class="text-sm font-black text-white">${ex.name}</h4>
+            </div>
+            <button data-idx="${idx}" class="preview-btn px-2.5 py-1 rounded-lg bg-ios-bg border border-ios-lime/40 text-ios-lime text-[11px] font-bold flex items-center gap-1 active:scale-95">
+              <i class="fa-solid fa-play text-[9px]"></i> 试听 4s 节奏
+            </button>
+          </div>
+
+          <!-- 节奏调整 -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-ios-grayText font-bold">动作节奏:</span>
+              <span class="font-mono font-black text-ios-lime">${ex.tempo} ${tempoUnitStr}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button data-idx="${idx}" data-dir="-1" class="step-tempo-btn w-8 h-8 rounded-lg bg-ios-bg border border-ios-border font-bold text-xs">-</button>
+              <input type="range" data-idx="${idx}" class="tempo-slider flex-1" min="${ex.tempoMin}" max="${ex.tempoMax}" step="${ex.tempoStep}" value="${ex.tempo}">
+              <button data-idx="${idx}" data-dir="1" class="step-tempo-btn w-8 h-8 rounded-lg bg-ios-bg border border-ios-border font-bold text-xs">+</button>
+            </div>
+          </div>
+
+          <!-- 目标调整 -->
+          <div class="flex items-center justify-between text-xs pt-1">
+            <span class="text-ios-grayText font-bold">训练目标:</span>
+            <div class="flex items-center gap-2">
+              <button data-idx="${idx}" data-dir="-5" class="step-target-btn w-7 h-7 rounded-lg bg-ios-bg border border-ios-border font-bold text-xs">-5</button>
+              <span class="font-mono font-bold text-white w-12 text-center">${ex.target} ${ex.unit}</span>
+              <button data-idx="${idx}" data-dir="5" class="step-target-btn w-7 h-7 rounded-lg bg-ios-bg border border-ios-border font-bold text-xs">+5</button>
+            </div>
+          </div>
+
+          <div class="text-[10px] text-ios-grayText text-right italic">
+            预估单项耗时: ~${estTimeSecs} 秒
+          </div>
+        `;
+
+        DOM.exerciseSettingsCards.appendChild(card);
+      });
+
+      bindDynamicSettingsEvents();
+    }
+
+    function bindSettingsEvents() {
+      DOM.restDurationSlider.value = appState.restDuration;
+      DOM.restDurationVal.innerText = `${appState.restDuration}秒`;
+
+      DOM.restDurationSlider.addEventListener('input', (e) => {
+        appState.restDuration = parseInt(e.target.value);
+        DOM.restDurationVal.innerText = `${appState.restDuration}秒`;
+        appState.saveGlobalSettings();
+        updateHeaderStats();
+      });
+
+      DOM.resetDefaultsBtn.addEventListener('click', () => {
+        if (confirm("确定要恢复默认动作目标与节奏设置吗？")) {
+          appState.resetExercisesToDefault();
+          renderSettingsCards();
+          updateHeaderStats();
+          updateWorkoutUI();
+        }
+      });
+    }
+
+    function bindDynamicSettingsEvents() {
+      // 试听按钮
+      document.querySelectorAll('.preview-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          soundEngine.playPreviewRhythm(appState.exercises[idx]);
+        });
+      });
+
+      // 节奏 Slider
+      document.querySelectorAll('.tempo-slider').forEach(slider => {
+        slider.addEventListener('input', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          appState.exercises[idx].tempo = parseFloat(e.target.value);
+          appState.saveExercises();
+          updateHeaderStats();
+          updateWorkoutUI();
+          renderSettingsCards();
+        });
+      });
+
+      // 节奏 -/+
+      document.querySelectorAll('.step-tempo-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          const dir = parseFloat(btn.dataset.dir);
+          const ex = appState.exercises[idx];
+          const step = dir * ex.tempoStep;
+          ex.tempo = Math.min(ex.tempoMax, Math.max(ex.tempoMin, parseFloat((ex.tempo + step).toFixed(1))));
+          appState.saveExercises();
+          updateHeaderStats();
+          updateWorkoutUI();
+          renderSettingsCards();
+        });
+      });
+
+      // 目标 -/+
+      document.querySelectorAll('.step-target-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          const dir = parseInt(btn.dataset.dir);
+          const ex = appState.exercises[idx];
+          ex.target = Math.max(5, ex.target + dir);
+          appState.saveExercises();
+          updateHeaderStats();
+          updateWorkoutUI();
+          renderSettingsCards();
+        });
+      });
+    }
+
+    /**
+     * 9. 打卡记录 & 月度日历渲染 (Tab 3)
+     */
+    function renderHistoryView() {
+      // 看板数据
+      DOM.statStreak.innerText = appState.getStreakDays();
+      
+      const uniqueDays = new Set(appState.checkins.map(c => c.date)).size;
+      DOM.statTotalDays.innerText = uniqueDays;
+      DOM.statTotalWorkouts.innerText = appState.checkins.length;
+
+      renderCalendarGrid();
+      renderHistoryLog();
+    }
+
+    // 月度日历生成
+    function renderCalendarGrid() {
+      const year = appState.currentCalendarDate.getFullYear();
+      const month = appState.currentCalendarDate.getMonth();
+
+      DOM.calendarMonthTitle.innerHTML = `<i class="fa-solid fa-calendar-check text-ios-lime"></i> ${year}年${month + 1}月`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // 获取打卡集合
+      const checkinMap = {};
+      appState.checkins.forEach(c => {
+        checkinMap[c.date] = c;
+      });
+
+      DOM.calendarGrid.innerHTML = '';
+
+      // 填充空白
+      for (let i = 0; i < firstDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = "h-8";
+        DOM.calendarGrid.appendChild(empty);
+      }
+
+      // 填入日期
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        const hasCheckin = !!checkinMap[dateStr];
+        const isToday = (dateStr === todayStr);
+
+        const dayCell = document.createElement('div');
+        dayCell.className = `h-9 rounded-xl flex flex-col items-center justify-center text-xs font-mono font-bold transition-all cursor-pointer ${
+          hasCheckin 
+            ? 'bg-ios-lime text-ios-bg shadow-[0_0_10px_rgba(204,255,0,0.4)]' 
+            : (isToday ? 'border-2 border-ios-lime text-white' : 'bg-ios-bg/60 text-slate-300 border border-ios-border/40')
+        }`;
+
+        dayCell.innerText = day;
+
+        if (hasCheckin) {
+          dayCell.title = `打卡记录: ${checkinMap[dateStr].note || '全套跟练'}`;
+          dayCell.addEventListener('click', () => {
+            alert(`📅 ${dateStr} 打卡详情:\n用时: ${checkinMap[dateStr].duration}分钟\n感受: ${checkinMap[dateStr].mood}\n备注: ${checkinMap[dateStr].note || '无'}`);
+          });
+        }
+
+        DOM.calendarGrid.appendChild(dayCell);
+      }
+    }
+
+    function renderHistoryLog() {
+      DOM.historyLogList.innerHTML = '';
+      if (appState.checkins.length === 0) {
+        DOM.historyLogList.innerHTML = '<div class="text-xs text-ios-grayText text-center py-4">暂无打卡记录，去跟练一次吧！</div>';
+        return;
+      }
+
+      appState.checkins.forEach(c => {
+        const div = document.createElement('div');
+        div.className = "flex items-center justify-between p-2.5 rounded-xl bg-ios-bg/60 border border-ios-border/50 text-xs";
+        
+        div.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="text-lg">${c.mood || '🔥'}</span>
+            <div>
+              <div class="font-bold text-white flex items-center gap-2">
+                <span>${c.date}</span>
+                <span class="text-[10px] text-ios-lime font-mono">${c.duration} 分钟</span>
+              </div>
+              <div class="text-[10px] text-ios-grayText mt-0.5">${c.note || '完成了全套 HIIT HIIT 跟练'}</div>
+            </div>
+          </div>
+          <button data-id="${c.id}" class="delete-log-btn text-ios-grayText hover:text-red-400 p-1">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        `;
+
+        DOM.historyLogList.appendChild(div);
+      });
+
+      document.querySelectorAll('.delete-log-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = btn.dataset.id;
+          if (confirm("确定删除这条打卡日志吗？")) {
+            appState.deleteCheckin(id);
+            renderHistoryView();
+          }
+        });
+      });
+    }
+
+    function bindHistoryEvents() {
+      DOM.prevMonthBtn.addEventListener('click', () => {
+        appState.currentCalendarDate.setMonth(appState.currentCalendarDate.getMonth() - 1);
+        renderCalendarGrid();
+      });
+
+      DOM.nextMonthBtn.addEventListener('click', () => {
+        appState.currentCalendarDate.setMonth(appState.currentCalendarDate.getMonth() + 1);
+        renderCalendarGrid();
+      });
+
+      // 打卡完成 modal 心情选择
+      DOM.moodBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          DOM.moodBtns.forEach(b => b.className = "mood-btn py-2 rounded-xl border border-ios-border bg-ios-bg text-lg");
+          btn.className = "mood-btn py-2 rounded-xl border border-ios-lime bg-ios-lime/20 text-lg";
+          appState.selectedMood = btn.dataset.mood;
+        });
+      });
+
+      // 保存跟练完成打卡
+      DOM.saveFinishBtn.addEventListener('click', () => {
+        const totalSecs = calculateTotalEstimatedSeconds();
+        const durationMins = Math.max(1, Math.round(totalSecs / 60));
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        appState.addCheckin({
+          id: 'ck_' + Date.now(),
+          date: todayStr,
+          timestamp: Date.now(),
+          duration: durationMins,
+          mood: appState.selectedMood,
+          note: DOM.checkinNoteInput.value.trim() || '完成全套 5 项 HIIT 跟练'
+        });
+
+        DOM.finishModal.classList.add('opacity-0', 'pointer-events-none');
+        DOM.finishContent.classList.add('scale-95');
+        resetWorkout();
+        updateHeaderStats();
+        renderHistoryView();
+      });
+
+      // 手动补打卡 Modal
+      DOM.openManualCheckinBtn.addEventListener('click', () => {
+        DOM.manualDateInput.value = new Date().toISOString().split('T')[0];
+        DOM.manualModal.classList.remove('opacity-0', 'pointer-events-none');
+      });
+
+      DOM.closeManualBtn.addEventListener('click', () => {
+        DOM.manualModal.classList.add('opacity-0', 'pointer-events-none');
+      });
+
+      DOM.saveManualCheckinBtn.addEventListener('click', () => {
+        const date = DOM.manualDateInput.value;
+        const duration = parseInt(DOM.manualDurationInput.value) || 6;
+        const note = DOM.manualNoteInput.value.trim() || '手动补打卡记录';
+
+        if (!date) {
+          alert("请选择打卡日期");
+          return;
+        }
+
+        appState.addCheckin({
+          id: 'ck_' + Date.now(),
+          date: date,
+          timestamp: Date.now(),
+          duration: duration,
+          mood: '💪',
+          note: note
+        });
+
+        DOM.manualModal.classList.add('opacity-0', 'pointer-events-none');
+        updateHeaderStats();
+        renderHistoryView();
+      });
+    }
+
+    // 页面加载启动
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
